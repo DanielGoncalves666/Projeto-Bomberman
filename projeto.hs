@@ -53,7 +53,7 @@ exemplo = [ [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedr
             [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
             [Pedra], [Presente "Patins", Grama], [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Grama], [Grama], [Pedra],
             [Pedra], [Jogador 1, Grama], [], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
-            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
+            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Presente "Patins",Grama], [Grama], [Pedra],
             [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Parede,Grama], [Grama], [Pedra],
             [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Presente "Patins",Grama], [Grama], [Pedra],
             [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Pedra], [Pedra], [Bomba,Grama], [Grama], [Pedra],
@@ -69,8 +69,8 @@ capacidade1 = [("Patins",1), ("Alcance",1),("Bomba",1)]
 
 jogador1 :: Jogador
 jogador1 = (1,(1,3),'S',capacidade1)
-jogador2 :: [Jogador]
-jogador2 = [(1,(1,3),'S',capacidade1),(2,(7,8),'S', capacidade1)]
+listaJogadores :: [Jogador]
+listaJogadores = [(1,(1,3),'S',capacidade1),(2,(7,8),'S', capacidade1)]
 
 lb :: [Bomba]
 lb = [(2,(7,7),2,0)]
@@ -85,6 +85,9 @@ a1 = imprimirTabuleiro a
 b1 = imprimirTabuleiro b
 
 obterCelula b 1 2
+
+(c,listaJogadores) = explosao a listaJogadores (2,(7,7),2,0)
+
 -}
 
 -------------------------------------------------------------------------------------------------------------------------------------
@@ -144,10 +147,9 @@ remover [] item = []
 remover c@(x:xs) (Jogador n)    -- Recursiva, pois não há local certo para o Jogador estar em jogadores
     | x == Jogador n = xs
     | otherwise = x : remover xs (Jogador n)
-remover c@(x:xs) item           -- Não é recursiva pois se não estamos querendo tirar um jogador ou bomba, então so podemos tirar o topo
-    | item == Pedra || item == Grama = c    -- nunca são removidos
+remover c@(x:xs) item           
     | x == item = xs
-    | otherwise = c
+    | otherwise = x : remover xs item
 
 
 adicionar :: Celula -> Cell -> Celula
@@ -409,15 +411,17 @@ arremesso t j = error "implementar"
 -- tendo o tabuleiro e os dados do jogador que plantou a bomba, recalcula o tabuleiro
 -- talvez tenhamos que criar um tipo de dado bomba
 explosao :: Tabuleiro -> ListaJogadores -> Bomba -> (Tabuleiro,ListaJogadores)
-explosao t j b = (tf,ljf)
+explosao t j b = (tabf,lisjf)
     where (x,y) = obterCoordenadasBomba b
           alc = obterAlcanceBomba b
-          (t1, lj1) = explosãoDeslocar t j (x,y) 0 (-1) alc -- Norte
-          (t2, lj2) = explosãoDeslocar t1 lj1 (x,y) 1 0 alc -- Leste
-          (t3, lj3) = explosãoDeslocar t2 lj2 (x,y) 0 1 alc -- Sul
-          (t4, lj4) = explosãoDeslocar t3 lj3 (x,y) (-1) 0 alc -- Oeste
-          (tf, ljf) = explosãoDeslocar t4 lj4 (x,y) 0 0 1       -- própria bomba
-    
+          tab0 = editarTabuleiro t (remover (obterCelula t x y) Bomba) x y -- remove a Bomba da célula de origem
+          (tab1, lisj1) = explosãoDeslocar tab0 j (x,y) 0 0 1 -- própria bomba, caso tenha algum jogador
+          (tab2, lisj2) = explosãoDeslocar tab1 lisj1 (x,y) 0 (-1) alc -- Norte
+          (tab3, lisj3) = explosãoDeslocar tab2 lisj2 (x,y) 1 0 alc -- Leste
+          (tab4, lisj4) = explosãoDeslocar tab3 lisj3 (x,y) 0 1 alc -- Sul
+          (tabf, lisjf) = explosãoDeslocar tab4 lisj4 (x,y) (-1) 0 alc -- Oeste
+          
+
     -- A bomba tem que ter chegado no tempo 0 para que possa explodir
     -- Uma verificação de explosão é setada para cada uma das quatro direções, de acordo com o alcance da explosão
         -- Não acontece nada à
@@ -435,12 +439,12 @@ explosãoDeslocar t lj (x,y) xarg yarg alcance
     | c == Pedra || c == Bomba = (t,lj)
     | null vazio = explosãoDeslocar t lj (x + xarg, y + yarg) xarg yarg (alcance - 1)   -- célula vazia fica inalterada
     | c == Grama = explosãoDeslocar t lj (x + xarg, y + yarg) xarg yarg (alcance - 1)   -- célula com grama fica inalterada
-    | c == Parede || ehPresente c = (novoTabuleiro, lj)
-    | existeJogador ce = explosãoDeslocar novoTabuleiroSemJ novaListaJogadores (x + xarg, y + yarg) xarg yarg (alcance -1)
+    | c == Parede || ehPresente c = explosãoDeslocar novoTabuleiro lj (x + xarg, y + yarg) xarg yarg (alcance - 1)
+    | existeJogador ce = explosãoDeslocar novoTabuleiroSemJ novaListaJogadores (x + xarg, y + yarg) xarg yarg (alcance -1)  -- mata jogadores e desloca
     | otherwise = (t,lj) --gambiarra
     where (x1,y1) = (x + xarg, y + yarg)        -- coordenadas da célula explodida
           ce@(c:cs) = obterCelula t x1 y1          -- conteúdo da célula explodida
-          vazio = obterCelula t x1 y1           -- conteúdo da célula explodida pro caso vazio
+          vazio = obterCelula t x1 y1           -- conteúdo da célula explodida pro caso vazio (evita erro)
           novoTabuleiro = editarTabuleiro t cs x1 y1
           (cel, novaListaJogadores) = matarJogadores ce lj
           novoTabuleiroSemJ = editarTabuleiro t cel x1 y1
