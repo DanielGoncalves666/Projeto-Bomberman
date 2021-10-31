@@ -36,6 +36,12 @@ existeJogador (l:ls)
     | properJogador l = True 
     | otherwise = existeJogador ls
 
+existePresente :: Celula -> Bool 
+existePresente [] = False 
+existePresente (l:ls)
+    | ehPresente l = True
+    | otherwise = existePresente ls
+
 existeNaCelula :: Celula -> Cell -> Bool
 existeNaCelula [] _ = False
 existeNaCelula (l:ls) c
@@ -57,7 +63,7 @@ exemplo = [ [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedr
             [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Parede,Grama], [Grama], [Pedra],
             [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Presente "Patins",Grama], [Grama], [Pedra],
             [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Pedra], [Pedra], [Bomba,Grama], [Grama], [Pedra],
-            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Jogador 2, Grama], [Grama], [Pedra],
+            [Pedra], [Jogador 3,Grama], [Bomba,Grama], [Parede,Grama], [Grama], [Grama], [Grama], [Jogador 2, Grama], [Grama], [Pedra],
             [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra]]
 -- Nas funções deste projeto estamos usando coordenadas do plano cartesiano. Ou seja, x indica a coluna e y indica a linha.
 -- Muita atenção com este detalhe. Por exemplo, a posição no canto inferior esquerdo é x = 0 e y = 9
@@ -65,15 +71,17 @@ exemplo = [ [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedr
 
 
 capacidade1 :: Capacidades
-capacidade1 = [("Patins",1), ("Alcance",1),("Bomba",1)]
+capacidade1 = [("Patins",1), ("Alcance",1),("Bomba",1),("Arremesso",1)]
 
 jogador1 :: Jogador
 jogador1 = (1,(1,3),'S',capacidade1)
+jogador3 :: Jogador
+jogador3 = (3,(1,8),'L',capacidade1)
 listaJogadores :: [Jogador]
-listaJogadores = [(1,(1,3),'S',capacidade1),(2,(7,8),'S', capacidade1)]
+listaJogadores = [(1,(1,3),'S',capacidade1),(2,(7,8),'S', capacidade1),(3,(1,8),'L',capacidade1)]
 
 lb :: [Bomba]
-lb = [(2,(7,7),2,0)]
+lb = [(2,(7,7),2,0),(3,(2,8),2,2)]
 
 {-
 a = construirTabuleiro exemplo 10 10
@@ -81,7 +89,8 @@ a1 = imprimirTabuleiro a
 
 (b,j1) = moverJogador a jogador1 'N'
 (b,j1,lb) = colocarBomba a jogador1 lb
- 
+(b,lbn) = arremesso a jogador3 lb
+
 b1 = imprimirTabuleiro b
 
 obterCelula b 1 2
@@ -238,6 +247,15 @@ alterarCoordenadas (a,_,c,d) xy = (a,xy,c,d)
 obterDirecao :: Jogador -> Char
 obterDirecao (_,_,c,_) = c
 
+valoresDirecao :: Char -> (Int,Int)
+valoresDirecao c
+    | c == 'N' = (0,-1)
+    | c == 'L' = (1,0)
+    | c == 'O' = (-1,0)
+    | c == 'S' = (0,1)
+    | otherwise = (0,0)
+
+
 alterarDirecao :: Jogador -> Char -> Jogador
 alterarDirecao (a,b,_,d) c = (a,b,c,d)
 
@@ -345,6 +363,21 @@ type Bomba = (Int, (Int, Int), Int, Int)
 adicionarBombaNaLista :: ListaBombas -> Bomba -> ListaBombas
 adicionarBombaNaLista l b = b : l
 
+-- remove a bomba presente nas coordenadas dadas
+removerBombaDaLista :: ListaBombas -> (Int,Int) -> ListaBombas
+removerBombaDaLista [] _ = []
+removerBombaDaLista (l:ls) xy
+    | lxy == xy = ls
+    | otherwise = l : removerBombaDaLista ls xy
+    where lxy = obterCoordenadasBomba l
+
+obterBombaNaCoordenada :: ListaBombas -> (Int,Int) -> Bomba
+obterBombaNaCoordenada [] _ = (-1,(-1,-1),-1,-1)
+obterBombaNaCoordenada (l:ls) xy
+    | xy == lxy = l
+    | otherwise = obterBombaNaCoordenada ls xy
+    where lxy = obterCoordenadasBomba l
+
 -- Inteiro que indica o ID do jogador que plantou a bomba (ver o caso que o jogador já morreu)
 -- Tupla de dois inteiros, que indica a posição da bomba
 -- Inteiro que indica a quantidade de casas que a explosão chega, por padrão sendo 1
@@ -402,8 +435,31 @@ adicionarBomba c@(x:xs)
 
 
 -- tendo o tabuleiro e os dados do jogador, recalcula a posição da bomba, se possível.
-arremesso :: Tabuleiro -> Jogador -> Tabuleiro
-arremesso t j = error "implementar"
+arremesso :: Tabuleiro -> Jogador -> ListaBombas -> (Tabuleiro,ListaBombas)
+arremesso t j lb
+    | existeNaCelula c Bomba && valorArremesso > 0 = (tf,lba)
+    | otherwise = (t,lb)
+    where (x,y) = obterCoordenadas j
+          (xarg, yarg) = valoresDirecao $ obterDirecao j  -- obtém os modificadores de posição de acordo com a direção que o jogador olha
+          valorArremesso = obterPresente (obterCapacidades j) (Presente "Arremesso") -- obtém o valor do presente Arremesso
+          c = obterCelula t (x + xarg) (y + yarg)         -- obtém a célula adjascente à direção que o jogador estiver olhando
+          ba = obterBombaNaCoordenada lb (x + xarg, y + yarg)                   -- obtém a bomba na posição que o jogador está olhando
+          nb = arremessar tsb ba (xarg,yarg) valorArremesso                     -- bomba antiga atualizada
+          (xn, yn) = obterCoordenadasBomba nb                                   -- obtém as coordenada de onde a bomba deve ser inserida
+          cn = obterCelula t xn yn                                              -- obtém a célula onde a bomba será inserida
+          tsb = editarTabuleiro t (remover c Bomba) (x + xarg) (y + yarg)        -- tabuleiro sem bomba
+          tf = editarTabuleiro tsb (adicionar cn Bomba) xn yn                   -- tabuleiro final
+          lbr = removerBombaDaLista lb (x + xarg, y + yarg)                     -- lista com a bomba removida
+          lba = adicionarBombaNaLista lbr nb                                                            -- lista com a nova bomba adicionada
+
+arremessar :: Tabuleiro -> Bomba -> (Int, Int) -> Int -> Bomba
+arremessar t (a,(x,y),c,d) (xarg, yarg) qtd
+    | qtd == 0 = (a,(x,y),c,d)
+    | valida = (a,(x,y),c,d)    -- caso a célula atual esteja ocupada a bomba é colocada na anterior
+    | otherwise = arremessar t (a, (x + xarg, y + yarg),c,d) (xarg,yarg) (qtd - 1)
+    where cel = obterCelula t (x + xarg) (y + yarg)         -- obtém a célula adjascente à direção que o jogador estiver olhando
+          valida = existeNaCelula cel Pedra || existeNaCelula cel Parede || existeNaCelula cel Bomba || existeJogador cel || existePresente cel
+
 
 --------------------------------------------------------------------------------------------------------------------------------------------
 
