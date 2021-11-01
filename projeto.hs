@@ -4,6 +4,106 @@ Nomes: Daniel Gonçalves
        Lorenzo Machado Burgos
 -}
 
+{-
+Funcionalidades:
+construirTabuleiro :: [Celula] -> Int -> Int -> Tabuleiro
+imprimirTabuleiro :: Tabuleiro -> [[Char]]
+
+adicionarListaJogador :: ListaJogadores -> Int -> (Int,Int) -> ListaJogadores
+alterarListaJogador :: ListaJogadores -> Jogador -> ListaJogadores
+retirarListaJogador :: ListaJogadores -> Cell -> ListaJogadores
+moverJogador :: Tabuleiro -> Jogador -> Char -> (Tabuleiro,Jogador)
+    N, O, S, L
+adicionarBombaNaLista :: ListaBombas -> Bomba -> ListaBombas
+removerBombaDaLista :: ListaBombas -> (Int,Int) -> ListaBombas
+obterTemporizadorBomba :: Bomba -> Int
+colocarBomba :: Tabuleiro -> Jogador -> ListaBombas -> (Tabuleiro, Jogador, ListaBombas)
+arremesso :: Tabuleiro -> Jogador -> ListaBombas -> (Tabuleiro,ListaBombas)
+explosao :: Tabuleiro -> ListaJogadores -> Bomba -> (Tabuleiro,ListaJogadores)
+detectarFim :: ListaJogadores -> Bool 
+-}
+
+-------------------------------------------------------------- Código Funcional Impuro ---------------------------------------------------------
+
+exemplo = [ [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra],
+            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
+            [Pedra], [Jogador 1, Grama], [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Grama], [Grama], [Pedra],
+            [Pedra], [Grama], [Parede,Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
+            [Pedra], [Grama], [Grama], [Grama], [Presente "Bomba",Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
+            [Pedra], [Parede, Presente "Arremesso",Grama], [Pedra], [Parede,Grama], [Pedra], [Grama], [Pedra], [Grama], [Grama], [Pedra],
+            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
+            [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Pedra], [Pedra], [Grama], [Grama], [Pedra],
+            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
+            [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra]]
+-- Nas funções deste projeto estamos usando coordenadas do plano cartesiano. Ou seja, x indica a coluna e y indica a linha.
+-- Muita atenção com este detalhe. Por exemplo, a posição no canto inferior esquerdo é x = 0 e y = 9
+
+listaJogadores = [(1,(1,2),'S', capacidadeBasica)]
+
+capacidadeBasica :: Capacidades
+capacidadeBasica = [("Patins",1), ("Alcance",1),("Bomba",1),("Arremesso",1)]
+
+iniciarTabuleiro :: (Tabuleiro, ListaJogadores, ListaBombas)
+iniciarTabuleiro = (construirTabuleiro exemplo 10 10, listaJogadores, [])
+
+-- tempoDeExplosão definido lá embaixo, junto com as bombas
+main = do
+    menu tab lj lb
+    where (tab, lj, lb) = iniciarTabuleiro
+
+menu :: Tabuleiro -> ListaJogadores -> ListaBombas -> IO ()
+menu tabuleiro listaJ listaB = do
+    let nlB = diminuirTemporizadorBombas listaB
+    let op = detectarFim listaJ -- true se o fim de jogo foi alcançada
+    
+    imprimirTabuleiroIO tabuleiro 
+    
+    putStrLn "Escolha o que fazer: n = Norte, s = Sul, l = Leste, o = Oeste, b = ColocarBomba, a = Arremessar, p = Sair"
+    opcao <- getChar
+
+    if op then putStrLn "Fim de Jogo."
+    else if opcao == 'p' then return ()
+                    else if opcao == 'b' then 
+                         let (tab', lj, lb) = colocarBomba tabuleiro (head listaJ) listaB
+                         in menu tab' [lj] lb
+                    else if opcao == 'a' then
+                         let (tab', lb) = arremesso tabuleiro (head listaJ) listaB
+                         in menu tab' listaJ lb
+                    else let (tab', lj) = case opcao of
+                                                     'n' -> moverJogador tabuleiro (head listaJ) 'N'
+                                                     's' -> moverJogador tabuleiro (head listaJ) 'S'
+                                                     'l' -> moverJogador tabuleiro (head listaJ) 'L'
+                                                     'o' -> moverJogador tabuleiro (head listaJ) 'O'
+                                                     _ -> (tabuleiro, head listaJ)
+                        in menu tab' [lj] listaB
+    return ()
+
+{-
+
+
+actionLoop :: Tabuleiro -> [JogadorDados] -> IO ()
+actionLoop t js =
+    let ids = [i | JogadorDados i _ _ <- js] in
+    do
+        move <- pegaMov ids
+        let (j,op) = fromMaybe (-1,NO_OP) move
+        print $ "(Jogador,Ação)" ++ show (j,op)
+        if op == Sair
+        then return ()
+        else let (t',js') = case op of
+                                ColocarBomba   -> colocarBomba t js j
+                                Agir           -> agir t js j
+                                Mover d        -> mover d t js j
+                                NO_OP          -> (t,js)
+                                _              -> (t,js)
+             in actionLoop t' js'
+
+-}
+
+
+
+-------------------------------------------------------- Código Funcional Puro ----------------------------------------------------------------
+
 data Cell = Grama | Pedra | Presente String | Parede | Bomba | Jogador Int deriving(Show,Eq)
 -- tanto grama como pedra, precisam estar no fundo da pilha, obrigatoriamente
 -- Ambos presentes tem mesma prioridade na pilha
@@ -50,40 +150,8 @@ existeNaCelula (l:ls) c
 
 -------------------------------------------------------------------------------------------------------------------------------------
 
-
 {-
-    Exemplo de tabuleiro 10 x 10
-    Uma lista de entrada para se criar um tabuleiro
--}
-exemplo = [ [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra],
-            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
-            [Pedra], [Presente "Patins", Grama], [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Grama], [Grama], [Pedra],
-            [Pedra], [Jogador 1, Grama], [], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
-            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Presente "Patins",Grama], [Grama], [Pedra],
-            [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Parede,Grama], [Grama], [Pedra],
-            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Presente "Patins",Grama], [Grama], [Pedra],
-            [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Pedra], [Pedra], [Bomba,Grama], [Grama], [Pedra],
-            [Pedra], [Jogador 3,Grama], [Bomba,Grama], [Parede,Grama], [Grama], [Grama], [Grama], [Jogador 2, Grama], [Grama], [Pedra],
-            [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra]]
--- Nas funções deste projeto estamos usando coordenadas do plano cartesiano. Ou seja, x indica a coluna e y indica a linha.
--- Muita atenção com este detalhe. Por exemplo, a posição no canto inferior esquerdo é x = 0 e y = 9
 
-
-
-capacidade1 :: Capacidades
-capacidade1 = [("Patins",1), ("Alcance",1),("Bomba",1),("Arremesso",1)]
-
-jogador1 :: Jogador
-jogador1 = (1,(1,3),'S',capacidade1)
-jogador3 :: Jogador
-jogador3 = (3,(1,8),'L',capacidade1)
-listaJogadores :: [Jogador]
-listaJogadores = [(1,(1,3),'S',capacidade1),(2,(7,8),'S', capacidade1),(3,(1,8),'L',capacidade1)]
-
-lb :: [Bomba]
-lb = [(2,(7,7),2,0),(3,(2,8),2,2)]
-
-{-
 a = construirTabuleiro exemplo 10 10
 a1 = imprimirTabuleiro a
 
@@ -169,13 +237,20 @@ adicionar l@(x:xs) item
     | properJogador item || item == Bomba = item:l
     | otherwise = l
 
+imprimirTabuleiroIO :: Tabuleiro -> IO ()
+imprimirTabuleiroIO [] = do
+    return ()
+imprimirTabuleiroIO (t:ts) = do
+    putStrLn $ imprimirLinha t
+    imprimirTabuleiroIO ts
+    return ()
 
 imprimirTabuleiro :: Tabuleiro -> [[Char]]
 imprimirTabuleiro [] = []
 imprimirTabuleiro (t:ts) = imprimirLinha t : imprimirTabuleiro ts
 
 
-imprimirLinha :: Linha -> [Char]
+imprimirLinha :: Linha -> String
 imprimirLinha [] = []
 imprimirLinha l
     | null (head l) = ' ' : imprimir
@@ -185,7 +260,6 @@ imprimirLinha l
     | topo == Bomba = 'B' : imprimir
     | ehPresente topo = 'o' : imprimir
     | properJogador topo = 'J' : imprimir
-    | ehPresente topo = 'o' : imprimir
     | otherwise = 'H' : imprimir
     where topo = head (head l)
           imprimir = imprimirLinha (tail l)
@@ -398,6 +472,11 @@ obterAlcanceBomba (_,_,c,_) = c
 
 obterTemporizadorBomba :: Bomba -> Int
 obterTemporizadorBomba (_,_,_,d) = d
+
+diminuirTemporizadorBombas :: ListaBombas -> ListaBombas
+diminuirTemporizadorBombas [] = []
+diminuirTemporizadorBombas (bomb:bs) = (a,b,c, d - 1) : diminuirTemporizadorBombas bs
+    where (a,b,c,d) = bomb
 
 
 colocarBomba :: Tabuleiro -> Jogador -> ListaBombas -> (Tabuleiro, Jogador, ListaBombas)
