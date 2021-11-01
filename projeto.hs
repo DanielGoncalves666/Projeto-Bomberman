@@ -19,6 +19,7 @@ removerBombaDaLista :: ListaBombas -> (Int,Int) -> ListaBombas
 obterTemporizadorBomba :: Bomba -> Int
 colocarBomba :: Tabuleiro -> Jogador -> ListaBombas -> (Tabuleiro, Jogador, ListaBombas)
 arremesso :: Tabuleiro -> Jogador -> ListaBombas -> (Tabuleiro,ListaBombas)
+explodirBombas :: Tabuleiro -> ListaJogadores -> ListaBombas -> (Tabuleiro,ListaJogadores, ListaBombas)
 explosao :: Tabuleiro -> ListaJogadores -> Bomba -> (Tabuleiro,ListaJogadores)
 detectarFim :: ListaJogadores -> Bool 
 -}
@@ -32,12 +33,14 @@ exemplo = [ [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedr
             [Pedra], [Grama], [Grama], [Grama], [Presente "Bomba",Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
             [Pedra], [Parede, Presente "Arremesso",Grama], [Pedra], [Parede,Grama], [Pedra], [Grama], [Pedra], [Grama], [Grama], [Pedra],
             [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
-            [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Pedra], [Pedra], [Grama], [Grama], [Pedra],
+            [Pedra], [Bomba,Grama], [Pedra], [Grama], [Pedra], [Pedra], [Pedra], [Grama], [Grama], [Pedra],
             [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
             [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra]]
 -- Nas funções deste projeto estamos usando coordenadas do plano cartesiano. Ou seja, x indica a coluna e y indica a linha.
 -- Muita atenção com este detalhe. Por exemplo, a posição no canto inferior esquerdo é x = 0 e y = 9
 
+
+listaJogadores :: ListaJogadores
 listaJogadores = [(1,(1,2),'S', capacidadeBasica)]
 
 capacidadeBasica :: Capacidades
@@ -54,9 +57,10 @@ main = do
 menu :: Tabuleiro -> ListaJogadores -> ListaBombas -> IO ()
 menu tabuleiro listaJ listaB = do
     let nlB = diminuirTemporizadorBombas listaB
-    let op = detectarFim listaJ -- true se o fim de jogo foi alcançada
+        (tabN, listJN, listaBN) = explodirBombas tabuleiro listaJ nlB   -- realiza o processo de explosão de todas as bombas 
+        op = detectarFim listJN -- true se o fim de jogo foi alcançada
     
-    imprimirTabuleiroIO tabuleiro 
+    imprimirTabuleiroIO tabN 
     
     putStrLn "Escolha o que fazer: n = Norte, s = Sul, l = Leste, o = Oeste, b = ColocarBomba, a = Arremessar, p = Sair"
     opcao <- getChar
@@ -64,42 +68,19 @@ menu tabuleiro listaJ listaB = do
     if op then putStrLn "Fim de Jogo."
     else if opcao == 'p' then return ()
                     else if opcao == 'b' then 
-                         let (tab', lj, lb) = colocarBomba tabuleiro (head listaJ) listaB
+                         let (tab', lj, lb) = colocarBomba tabN (head listJN) listaBN
                          in menu tab' [lj] lb
                     else if opcao == 'a' then
-                         let (tab', lb) = arremesso tabuleiro (head listaJ) listaB
-                         in menu tab' listaJ lb
+                         let (tab', lb) = arremesso tabN (head listJN) listaBN
+                         in menu tab' listJN lb
                     else let (tab', lj) = case opcao of
-                                                     'n' -> moverJogador tabuleiro (head listaJ) 'N'
-                                                     's' -> moverJogador tabuleiro (head listaJ) 'S'
-                                                     'l' -> moverJogador tabuleiro (head listaJ) 'L'
-                                                     'o' -> moverJogador tabuleiro (head listaJ) 'O'
-                                                     _ -> (tabuleiro, head listaJ)
-                        in menu tab' [lj] listaB
+                                                     'n' -> moverJogador tabN (head listJN) 'N'
+                                                     's' -> moverJogador tabN (head listJN) 'S'
+                                                     'l' -> moverJogador tabN (head listJN) 'L'
+                                                     'o' -> moverJogador tabN (head listJN) 'O'
+                                                     _ -> (tabN, head listJN)
+                        in menu tab' [lj] listaBN
     return ()
-
-{-
-
-
-actionLoop :: Tabuleiro -> [JogadorDados] -> IO ()
-actionLoop t js =
-    let ids = [i | JogadorDados i _ _ <- js] in
-    do
-        move <- pegaMov ids
-        let (j,op) = fromMaybe (-1,NO_OP) move
-        print $ "(Jogador,Ação)" ++ show (j,op)
-        if op == Sair
-        then return ()
-        else let (t',js') = case op of
-                                ColocarBomba   -> colocarBomba t js j
-                                Agir           -> agir t js j
-                                Mover d        -> mover d t js j
-                                NO_OP          -> (t,js)
-                                _              -> (t,js)
-             in actionLoop t' js'
-
--}
-
 
 
 -------------------------------------------------------- Código Funcional Puro ----------------------------------------------------------------
@@ -478,7 +459,6 @@ diminuirTemporizadorBombas [] = []
 diminuirTemporizadorBombas (bomb:bs) = (a,b,c, d - 1) : diminuirTemporizadorBombas bs
     where (a,b,c,d) = bomb
 
-
 colocarBomba :: Tabuleiro -> Jogador -> ListaBombas -> (Tabuleiro, Jogador, ListaBombas)
 colocarBomba t j lb
     | qtdBombas == 0 = (t,j,lb) -- o jogador não pode colocar mais nenhuma bomba no momento
@@ -541,10 +521,22 @@ arremessar t (a,(x,y),c,d) (xarg, yarg) qtd
 
 
 --------------------------------------------------------------------------------------------------------------------------------------------
+-- temos certeza que não é a melhor forma de fazer essa função
+-- realiza a explosão das bombas em uma lista
+explodirBombas :: Tabuleiro -> ListaJogadores -> ListaBombas -> (Tabuleiro,ListaJogadores, ListaBombas)
+explodirBombas t lj [] = (t,lj,[])
+explodirBombas t lj (bomb:bs)
+    | temporizador == 0 = (tn2, ljn2, lbn2)
+    | otherwise = (tn1, ljn1, bomb:lbn1)
+    where temporizador = obterTemporizadorBomba bomb
+          (tn1, ljn1, lbn1) = explodirBombas t lj bs           -- quando a bomba verificada não explode
+          (te, lje) = explosao t lj bomb                    -- realiza a explosao da bomba
+          (tn2, ljn2, lbn2) = explodirBombas te lje bs           -- quando a bomba verificada EXPLODE
 
 
 -- tendo o tabuleiro e os dados do jogador que plantou a bomba, recalcula o tabuleiro
 -- talvez tenhamos que criar um tipo de dado bomba
+
 explosao :: Tabuleiro -> ListaJogadores -> Bomba -> (Tabuleiro,ListaJogadores)
 explosao t j b = (tabf,lisjf)
     where (x,y) = obterCoordenadasBomba b
@@ -554,8 +546,10 @@ explosao t j b = (tabf,lisjf)
           (tab2, lisj2) = explosãoDeslocar tab1 lisj1 (x,y) 0 (-1) alc -- Norte
           (tab3, lisj3) = explosãoDeslocar tab2 lisj2 (x,y) 1 0 alc -- Leste
           (tab4, lisj4) = explosãoDeslocar tab3 lisj3 (x,y) 0 1 alc -- Sul
-          (tabf, lisjf) = explosãoDeslocar tab4 lisj4 (x,y) (-1) 0 alc -- Oeste
-          
+          (tabf, lisj5) = explosãoDeslocar tab4 lisj4 (x,y) (-1) 0 alc -- Oeste
+          id = obterIDBomba b 
+          lisjf = retornarCapacidadeBomba lisj5 id
+
 
     -- A bomba tem que ter chegado no tempo 0 para que possa explodir
     -- Uma verificação de explosão é setada para cada uma das quatro direções, de acordo com o alcance da explosão
@@ -565,6 +559,16 @@ explosao t j b = (tabf,lisjf)
         -- Células com parede no topo tem seu topo retirado
         -- Células com presente no topo tem o presente destruído
         -- Células com jogador, a explosão matará os jogadores
+
+-- quando a bomba explodir retorna a capacidade de colocar bomba ao jogador que a colocou
+retornarCapacidadeBomba :: ListaJogadores -> Int -> ListaJogadores
+retornarCapacidadeBomba [] _ = []
+retornarCapacidadeBomba (j:js) id
+    | obterNumeroJogador j == id = novoJogador:js
+    | otherwise = j : retornarCapacidadeBomba js id
+    where capac = obterCapacidades j
+          capacN = incrementarPresente capac (Presente "Bomba")
+          novoJogador = alterarCapacidades j capacN
 
 -- Função auxiliar deslocar, que será responsável pelo deslocamento da explosão nas quatro direções
 -- (x,y) coordenadas anteriores e xarg e yarg alteradores
