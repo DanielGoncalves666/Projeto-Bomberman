@@ -1,7 +1,7 @@
 {-
-Nomes: Daniel Gonçalves
-       Marcus Vinícius Torres
-       Lorenzo Machado Burgos
+Nomes: Daniel Gonçalves         12011BCC011
+       Marcus Vinícius Torres   12011BCC025
+       Lorenzo Machado Burgos   12011BCC005
 -}
 
 -- O fim de jogo foi estabelecido como a situação em que não resta nenhum jogador no tabuleiro
