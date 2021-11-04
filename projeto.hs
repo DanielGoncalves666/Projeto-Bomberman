@@ -4,26 +4,7 @@ Nomes: Daniel Gonçalves
        Lorenzo Machado Burgos
 -}
 
-{-
-Funcionalidades:
-construirTabuleiro :: [Celula] -> Int -> Int -> Tabuleiro
-imprimirTabuleiro :: Tabuleiro -> [[Char]]
-
-adicionarListaJogador :: ListaJogadores -> Int -> (Int,Int) -> ListaJogadores
-alterarListaJogador :: ListaJogadores -> Jogador -> ListaJogadores
-retirarListaJogador :: ListaJogadores -> Cell -> ListaJogadores
-moverJogador :: Tabuleiro -> Jogador -> Char -> (Tabuleiro,Jogador)
-    N, O, S, L
-adicionarBombaNaLista :: ListaBombas -> Bomba -> ListaBombas
-removerBombaDaLista :: ListaBombas -> (Int,Int) -> ListaBombas
-obterTemporizadorBomba :: Bomba -> Int
-colocarBomba :: Tabuleiro -> Jogador -> ListaBombas -> (Tabuleiro, Jogador, ListaBombas)
-arremesso :: Tabuleiro -> Jogador -> ListaBombas -> (Tabuleiro,ListaBombas)
-explodirBombas :: Tabuleiro -> ListaJogadores -> ListaBombas -> (Tabuleiro,ListaJogadores, ListaBombas)
-explosao :: Tabuleiro -> ListaJogadores -> Bomba -> (Tabuleiro,ListaJogadores)
-detectarFim :: ListaJogadores -> Bool 
--}
-
+-- O fim de jogo foi estabelecido como a situação em que não resta nenhum jogador no tabuleiro
 -------------------------------------------------------------- Código Funcional Impuro ---------------------------------------------------------
 
 exemplo = [ [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra],
@@ -33,15 +14,15 @@ exemplo = [ [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedr
             [Pedra], [Grama], [Grama], [Grama], [Presente "Bomba",Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
             [Pedra], [Parede, Presente "Arremesso",Grama], [Pedra], [Parede,Grama], [Pedra], [Grama], [Pedra], [Grama], [Grama], [Pedra],
             [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
-            [Pedra], [Bomba,Grama], [Pedra], [Grama], [Pedra], [Pedra], [Pedra], [Grama], [Grama], [Pedra],
-            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Pedra],
+            [Pedra], [Grama], [Pedra], [Grama], [Pedra], [Pedra], [Pedra], [Grama], [Grama], [Pedra],
+            [Pedra], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Grama], [Jogador 2, Grama], [Pedra],
             [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra], [Pedra]]
 -- Nas funções deste projeto estamos usando coordenadas do plano cartesiano. Ou seja, x indica a coluna e y indica a linha.
 -- Muita atenção com este detalhe. Por exemplo, a posição no canto inferior esquerdo é x = 0 e y = 9
 
 
 listaJogadores :: ListaJogadores
-listaJogadores = [(1,(1,2),'S', capacidadeBasica)]
+listaJogadores = [(1,(1,2),'S', capacidadeBasica),(2,(8,8),'S', capacidadeBasica)]
 
 capacidadeBasica :: Capacidades
 capacidadeBasica = [("Patins",1), ("Alcance",1),("Bomba",1),("Arremesso",1)]
@@ -54,34 +35,67 @@ main = do
     menu tab lj lb
     where (tab, lj, lb) = iniciarTabuleiro
 
+-- Implementado para funcionar com dois jogadores jogando ao mesmo tempo
 menu :: Tabuleiro -> ListaJogadores -> ListaBombas -> IO ()
 menu tabuleiro listaJ listaB = do
     let nlB = diminuirTemporizadorBombas listaB
         (tabN, listJN, listaBN) = explodirBombas tabuleiro listaJ nlB   -- realiza o processo de explosão de todas as bombas 
         op = detectarFim listJN -- true se o fim de jogo foi alcançada
-    
+        existe = jogadorNaLista listJN
+
+    putStrLn ""
     imprimirTabuleiroIO tabN 
     
-    putStrLn "Escolha o que fazer: n = Norte, s = Sul, l = Leste, o = Oeste, b = ColocarBomba, a = Arremessar, p = Sair"
+    -- Podemos percorrer a lista de jogadores um por um para que cada um deles faça sua ação.
+        -- Podemos reimprimir o tabuleiro toda vez que algum fazer uma açao ou não imprimir.
+    -- Outra opção seria a se perguntar qual jogador deve ser mexido. Porém teríamos de ter mecanismos para impedir movimento duplicado 
+        -- e uma opção pra finalizar aquele round.
+    -- Uma terceira opção seriad definir certas teclas para cada jogador. 
+        -- Nesse caso precisamos verificar pra cada conjunto de teclas se o jogador está vivo.
+
+    -- Com mais de um jogador talvez seja mais interessante a adição de regras específicas para a condição de ganhar, invés de simplesmente
+        -- não ter mais nenhum jogador vivo.
+
+    putStrLn "Lista de Comandos do Jogador 1: w = Norte, s = Sul, d = Leste, a = Oeste, c = ColocarBomba, v = Arremessar, p = Sair"
+    putStrLn "Lista de Comandos do Jogador 2: i = Norte, k = sul, l = leste, j = Oeste, n = ColocarBomba, m = Arremessar" 
     opcao <- getChar
 
     if op then putStrLn "Fim de Jogo."
     else if opcao == 'p' then return ()
-                    else if opcao == 'b' then 
-                         let (tab', lj, lb) = colocarBomba tabN (head listJN) listaBN
-                         in menu tab' [lj] lb
-                    else if opcao == 'a' then
-                         let (tab', lb) = arremesso tabN (head listJN) listaBN
+                    else if opcao == 'c' && existe 1 then   -- Jogador 1
+                         let (tab', lj, lb) = colocarBomba tabN (obterJogadorDaLista listJN 1) listaBN
+                         in menu tab' (alterarListaJogador listJN lj) lb
+                    else if opcao == 'n' && existe 2 then   -- Jogador 2
+                         let (tab', lj, lb) = colocarBomba tabN (obterJogadorDaLista listJN 2) listaBN
+                         in menu tab' (alterarListaJogador listJN lj) lb
+                    else if opcao == 'v' && existe 1 then   -- Jogador 1
+                         let (tab', lb) = arremesso tabN (obterJogadorDaLista listJN 1) listaBN
                          in menu tab' listJN lb
-                    else let (tab', lj) = case opcao of
-                                                     'n' -> moverJogador tabN (head listJN) 'N'
-                                                     's' -> moverJogador tabN (head listJN) 'S'
-                                                     'l' -> moverJogador tabN (head listJN) 'L'
-                                                     'o' -> moverJogador tabN (head listJN) 'O'
-                                                     _ -> (tabN, head listJN)
-                        in menu tab' [lj] listaBN
+                    else if opcao == 'm' && existe 2 then   -- Jogador 2
+                         let (tab', lb) = arremesso tabN (obterJogadorDaLista listJN 2) listaBN
+                         in menu tab' listJN lb
+                    else if opcao == 'w' && existe 1 then   -- Jogador 1
+                         let (tab', lj) = moverJogador tabN (obterJogadorDaLista listJN 1) 'N'
+                         in menu tab' (alterarListaJogador listJN lj) listaBN
+                    else if opcao == 's' && existe 1 then   -- Jogador 1
+                         let (tab', lj) = moverJogador tabN (obterJogadorDaLista listJN 1) 'S'
+                         in menu tab' (alterarListaJogador listJN lj) listaBN
+                    else if opcao == 'd' && existe 1 then   -- Jogador 1
+                         let (tab', lj) = moverJogador tabN (obterJogadorDaLista listJN 1) 'L'
+                         in menu tab' (alterarListaJogador listJN lj) listaBN
+                    else if opcao == 'a' && existe 1 then   -- Jogador 1
+                         let (tab', lj) = moverJogador tabN (obterJogadorDaLista listJN 1) 'O'
+                         in menu tab' (alterarListaJogador listJN lj) listaBN
+                    else if existe 2 then -- Jogador 2
+                         let (tab', lj) = case opcao of    
+                                                     'i' -> moverJogador tabN (obterJogadorDaLista listJN 2) 'N'
+                                                     'k' -> moverJogador tabN (obterJogadorDaLista listJN 2) 'S'
+                                                     'l' -> moverJogador tabN (obterJogadorDaLista listJN 2) 'L'
+                                                     'j' -> moverJogador tabN (obterJogadorDaLista listJN 2) 'O'
+                                                     _   -> (tabN, obterJogadorDaLista listJN 2)
+                         in menu tab' (alterarListaJogador listJN lj) listaBN
+                    else menu tabN listJN listaBN
     return ()
-
 
 -------------------------------------------------------- Código Funcional Puro ----------------------------------------------------------------
 
@@ -128,25 +142,6 @@ existeNaCelula [] _ = False
 existeNaCelula (l:ls) c
     | l == c = True
     | otherwise = existeNaCelula ls c
-
--------------------------------------------------------------------------------------------------------------------------------------
-
-{-
-
-a = construirTabuleiro exemplo 10 10
-a1 = imprimirTabuleiro a
-
-(b,j1) = moverJogador a jogador1 'N'
-(b,j1,lb) = colocarBomba a jogador1 lb
-(b,lbn) = arremesso a jogador3 lb
-
-b1 = imprimirTabuleiro b
-
-obterCelula b 1 2
-
-(c,listaJogadores) = explosao a listaJogadores (2,(7,7),2,0)
-
--}
 
 -------------------------------------------------------------------------------------------------------------------------------------
 
@@ -224,12 +219,6 @@ imprimirTabuleiroIO [] = do
 imprimirTabuleiroIO (t:ts) = do
     putStrLn $ imprimirLinha t
     imprimirTabuleiroIO ts
-    return ()
-
-imprimirTabuleiro :: Tabuleiro -> [[Char]]
-imprimirTabuleiro [] = []
-imprimirTabuleiro (t:ts) = imprimirLinha t : imprimirTabuleiro ts
-
 
 imprimirLinha :: Linha -> String
 imprimirLinha [] = []
@@ -289,7 +278,19 @@ retirarListaJogador (l:ls) (Jogador id)
     | otherwise = l : retirarListaJogador ls (Jogador id)
     where idCabeca = obterNumeroJogador l
 retirarListaJogador l _ = l
- 
+
+jogadorNaLista :: ListaJogadores -> Int -> Bool 
+jogadorNaLista [] _ = False
+jogadorNaLista (l:ls) id 
+    | obterNumeroJogador l == id = True 
+    | otherwise = jogadorNaLista ls id
+
+obterJogadorDaLista :: ListaJogadores -> Int -> Jogador
+obterJogadorDaLista [] _ = error "Jogador não encontrado."
+obterJogadorDaLista (l:ls) id
+    | obterNumeroJogador l == id = l
+    | otherwise = obterJogadorDaLista ls id
+
 obterNumeroJogador :: Jogador -> Int
 obterNumeroJogador (n,_,_,_) = n
 
